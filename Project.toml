@@ -1,0 +1,10 @@
+name = "LuxCat"
+uuid = "1adf876c-ebf6-4c25-9529-59df72e3cef9"
+authors = ["Jacob Zelko <jacobszelko@gmail.com>"]
+version = "0.0.0"
+
+[deps]
+Luxor = "ae8d54c2-7ccd-5906-9d76-62fc9837b5bc"
+
+[compat]
+julia = "1.6"
