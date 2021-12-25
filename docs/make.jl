@@ -15,4 +15,4 @@ makedocs(;
     ],
 )
 
-deploydocs(; repo = "https://github.com/TheCedarPrince/LuxCat.jl.git", push_preview = true)
+deploydocs(; devbranch = "main", repo = "https://github.com/TheCedarPrince/LuxCat.jl.git", push_preview = true)
