@@ -51,7 +51,7 @@ function Luxor.text(
     pt::Point;
     valign = :baseline,
     halign = :left,
-    angle = 0
+    angle = 0,
 )
 
     # Function from MathTexEngine
@@ -85,12 +85,12 @@ function Luxor.text(
         if text[1] isa TeXChar
             @layer begin
                 translate(translate_x, translate_y)
-		fontface(text[1].font.family_name)
+                fontface(text[1].font.family_name)
                 fontsize(textsize * text[3])
                 Luxor.text(
                     string(text[1].char),
                     pt + Point(text[2]...) * textsize * (1, -1),
-		    angle = angle
+                    angle = angle,
                 )
             end
         elseif text[1] isa HLine
@@ -113,9 +113,13 @@ function make_drawing(width, height, img_path, bkg_color, origin_p)
     return d
 end
 
-map2luxor(p) = Point(p.x, -p.y)
-map2luxor(p::Array) = Point(p[1], -p[2])
-map2luxor(x, y) = Point(x, -y)
+cart2luxor(p) = Point(p.x, -p.y)
+cart2luxor(p::Array) = Point(p[1], -p[2])
+cart2luxor(x, y) = Point(x, -y)
+
+luxor2cart(p::Point) = [p.x, -p.y]
+
+parametric_point(t, x, y) = x + y * t
 
 # Constants
 ## Canvas constants
@@ -135,48 +139,51 @@ p2 = [125, 125] # Top right quadrant
 p3 = [-125, -125] # Bottom left quadrant
 p4 = [125, -125] # Bottom right quadrant
 
-function morphtext(;
+function morphtext(
     label1::Any,
-    label2::Any,
-    offset1::Real,
-    offset2::Real,
-    angle,
+    label2::Any;
+    offset1::Real = 20,
+    offset2::Real = 20,
+    angle = 0,
     size = nothing,
 )
     fontsize(size)
-    text(label1, map2luxor(0, offset1), valign = :middle, halign = :center, angle = angle)
-    text(label2, map2luxor(0, -offset2), valign = :middle, halign = :center, angle = angle)
+    text(label1, cart2luxor(0, offset1), valign = :middle, halign = :center, angle = angle)
+    text(label2, cart2luxor(0, -offset2), valign = :middle, halign = :center, angle = angle)
 end
 
-# text(L"9\frac{3}{4}", O)
+function morphtext(label::Any; offset::Real = 20, angle = 0, size = nothing)
+    fontsize(size)
+    text(label, cart2luxor(0, offset), valign = :middle, halign = :center, angle = angle)
+end
 
-function morphism(;
-    initial_point::Array = nothing,
-    terminal_point::Array = nothing,
+function morphism(
+    initial_point::Array,
+    terminal_point::Array;
     label1::Any = "",
     label2::Any = "",
     offset1::Real = 10,
     offset2::Real = 10,
     size::Real = 16,
-    padding::Real = .15
+    padding::Real = 0.15,
 )
 
      v⃗ = terminal_point .- initial_point
        θ = atan(v⃗[2] / v⃗[1]) + (v⃗[1] < 0 ? π : 0)
 
     padded_initial_point =
-        between(map2luxor(initial_point), map2luxor(terminal_point), padding)
+        between(cart2luxor(initial_point), cart2luxor(terminal_point), padding)
     padded_terminal_point =
-        between(map2luxor(initial_point), map2luxor(terminal_point), 1 - padding)
+        between(cart2luxor(initial_point), cart2luxor(terminal_point), 1 - padding)
 
     arrow(
         padded_initial_point,
-	padded_terminal_point,
+        padded_terminal_point,
         arrowheadlength = 15,
         decoration = 0.5,
-        decorate = () -> morphtext(;
-            label1 = label1,
-            label2 = label2,
+        decorate = () -> morphtext(
+            label1,
+            label2,
             offset1 = offset1,
             offset2 = offset2,
             angle = θ,
@@ -187,17 +194,96 @@ function morphism(;
 
 end
 
-morphism(initial_point = p1, terminal_point = p2, label1 = L"f", offset1 = 20)
-morphism(initial_point = p2, terminal_point = p4, label1 = L"F", offset1 = 20)
-morphism(initial_point = p1, terminal_point = p3, label2 = L"F", offset2 = 20)
-morphism(initial_point = p3, terminal_point = p4, label2 = L"F(f)", offset2 = 20)
-morphism(initial_point = p1, terminal_point = p4, label1 = L"ID", offset1 = 20)
+function morphism(
+    initial_point_1::Array,
+    terminal_point_1::Array,
+    initial_point_2::Array,
+    terminal_point_2::Array;
+    label1::Any = "",
+    label2::Any = "",
+    style1::String = "solid",
+    style2::String = "solid",
+    offset1::Real = 10,
+    offset2::Real = 10,
+    size::Real = 16,
+    padding::Real = 0.15,
+)
 
-sethue(RGBA(1.0, 1.0, 1.0))
+    Set([initial_point_1, terminal_point_1]) != Set([initial_point_2, terminal_point_2]) &&
+        @error "Only two different points allowed"
+
+    padded_is = []
+    padded_ts = []
+    angles = []
+    for (i, t) in [[initial_point_1, terminal_point_1], [initial_point_2, terminal_point_2]]
+         v⃗ = t .- i
+           θ = atan(v⃗[2] / v⃗[1]) + (v⃗[1] < 0 ? π : 0)
+
+        padded_i = between(cart2luxor(i), cart2luxor(t), padding)
+        padded_t = between(cart2luxor(i), cart2luxor(t), 1 - padding)
+
+         v⃗ₚ = luxor2cart(padded_i) .- luxor2cart(padded_t)
+        x = 1
+        y = 1
+          if (-1 * v⃗ₚ[1] * x) / v⃗ₚ[2] |> isinf
+              x = (v⃗ₚ[2] * y) / (-1 * v⃗ₚ[1])
+        else
+              y = (-1 * v⃗ₚ[1] * x) / v⃗ₚ[2]
+        end
+        i_new = parametric_point(
+            length(padded_is) == 0 ? 10 : -10,
+            luxor2cart(padded_i),
+            [x; y],
+        )
+        t_new = parametric_point(
+            length(padded_ts) == 0 ? 10 : -10,
+            luxor2cart(padded_t),
+            [x; y],
+        )
+        push!(padded_is, i_new)
+        push!(padded_ts, t_new)
+        push!(angles, θ)
+    end
+
+    setdash(style1)
+
+    arrow(
+        cart2luxor(padded_is[1]),
+        cart2luxor(padded_ts[1]),
+        arrowheadlength = 15,
+        decoration = 0.5,
+        decorate = () ->
+            morphtext(label1, offset = offset1 + 20, angle = angles[1], size = size),
+        linewidth = 3,
+    )
+
+    setdash(style2)
+
+    arrow(
+        cart2luxor(padded_is[2]),
+        cart2luxor(padded_ts[2]),
+        arrowheadlength = 15,
+        decoration = 0.5,
+        decorate = () ->
+            morphtext(label2, offset = -offset2 - 10, angle = angles[2], size = size),
+        linewidth = 3,
+    )
+
+    setdash("solid")
+
+end
+
+morphism( p1, p2, p2, p1, label1 = L"id_{A}", offset1 = -0, offset2 = 0, style1 = "longdashed", style2 = "dotted", padding = 0.15)
+morphism(p4, p2, label1 = L"\pi", label2 = L"f", offset2 = 0, offset1 = 30, padding = 0.15)
+morphism(p1, p3, label2 = L"f", offset2 = 20, padding = 0.15)
+morphism(p3, p4, p3, p4, label1 = L"\phi_{12}", label2 = L"id_{B}", offset2 = 20, padding = 0.15)
+morphism(p2, p3, label2 = L"f", offset2 = 20, padding = 0.15)
+
+sethue("white")
 fontsize(24)
-text(L"A", map2luxor(p1), valign = :middle, halign = :center)
-text(L"B", map2luxor(p2), valign = :middle, halign = :center)
-text(L"F(A)", map2luxor(p3), valign = :middle, halign = :center)
-text(L"F(B)", map2luxor(p4), valign = :middle, halign = :center)
+text(L"A", cart2luxor(p1), valign = :middle, halign = :center)
+text(L"A", cart2luxor(p2), valign = :middle, halign = :center)
+text(L"B", cart2luxor(p3), valign = :middle, halign = :center)
+text(L"b \in B", cart2luxor(p4), valign = :middle, halign = :center)
 
 finish()
